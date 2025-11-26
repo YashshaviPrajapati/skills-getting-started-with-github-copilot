@@ -12,6 +12,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      // Reset activity select options (keep placeholder)
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -31,12 +33,70 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         `;
 
-        // Populate participants list
+        // Populate participants list with delete buttons
         const participantsListEl = activityCard.querySelector(".participants-list");
         if (details.participants && details.participants.length > 0) {
           details.participants.forEach((p) => {
             const li = document.createElement("li");
-            li.textContent = p; // assume participant string (name or email)
+
+            const span = document.createElement("span");
+            span.textContent = p;
+
+            const delBtn = document.createElement("button");
+            delBtn.className = "delete-btn";
+            delBtn.title = "Unregister participant";
+            delBtn.setAttribute("aria-label", `Remove ${p}`);
+            delBtn.textContent = "✖";
+
+            // Attach dataset for handler
+            delBtn.dataset.activity = name;
+            delBtn.dataset.email = p;
+
+            // Click handler for delete
+            delBtn.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              const activityName = delBtn.dataset.activity;
+              const email = delBtn.dataset.email;
+
+              try {
+                const resp = await fetch(
+                  `/activities/${encodeURIComponent(activityName)}/participants?email=${encodeURIComponent(email)}`,
+                  { method: "DELETE" }
+                );
+
+                const resJson = await resp.json();
+
+                if (resp.ok) {
+                  // Remove the list item from the DOM
+                  participantsListEl.removeChild(li);
+
+                  // If the list is now empty, show placeholder
+                  if (participantsListEl.querySelectorAll("li").length === 0) {
+                    const emptyLi = document.createElement("li");
+                    emptyLi.textContent = "No participants yet";
+                    emptyLi.className = "no-participants";
+                    participantsListEl.appendChild(emptyLi);
+                  }
+
+                  messageDiv.textContent = resJson.message || "Participant removed";
+                  messageDiv.className = "success";
+                } else {
+                  messageDiv.textContent = resJson.detail || "Failed to remove participant";
+                  messageDiv.className = "error";
+                }
+
+                messageDiv.classList.remove("hidden");
+                setTimeout(() => messageDiv.classList.add("hidden"), 4000);
+              } catch (err) {
+                messageDiv.textContent = "Failed to remove participant. Please try again.";
+                messageDiv.className = "error";
+                messageDiv.classList.remove("hidden");
+                console.error("Error removing participant:", err);
+              }
+            });
+
+            li.appendChild(span);
+            li.appendChild(delBtn);
             participantsListEl.appendChild(li);
           });
         } else {
